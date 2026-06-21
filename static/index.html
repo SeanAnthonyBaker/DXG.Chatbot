@@ -56,6 +56,9 @@
                         <button type="button" class="suggestion-pill" id="welcomeRandomBtn" title="Generate random question">
                             <i class="fa-solid fa-lightbulb"></i> Try a random question about Google Agents, ADK & Gemini
                         </button>
+                        <button type="button" class="suggestion-pill explore-btn" id="welcomeExploreBtn" title="Explore related question" style="display: none;">
+                            <i class="fa-solid fa-compass"></i> Explore related topics
+                        </button>
                     </div>
                 </div>
             </div>
@@ -87,9 +90,12 @@
                         </div>
                     </div>
                     
-                    <div class="settings-center">
+                    <div class="settings-center" style="display: flex; gap: 8px;">
                         <button id="randomQuestionBtn" type="button" class="random-q-btn" title="Generate random question">
                             <i class="fa-solid fa-dice"></i> Random Question
+                        </button>
+                        <button id="exploreRelatedBtn" type="button" class="random-q-btn explore-btn" title="Explore related question" disabled>
+                            <i class="fa-solid fa-compass"></i> Explore Related
                         </button>
                     </div>
                     

@@ -39,6 +39,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let historyQuestions = [];
     let historyIndex = -1;
     let draftPrompt = "";
+    let lastRandomQuestion = "";
 
     // Curated list of questions related to Google Agents, ADK, and Gemini AI
     const randomQuestions = [
@@ -55,6 +56,70 @@ document.addEventListener("DOMContentLoaded", () => {
         "Can you write a step-by-step guide to deploying a Gemini-powered agent on GCP?",
         "How does ADK handle parallel execution of tasks using cooperative subagents?"
     ];
+
+    // Map each random question to a list of deeper, related follow-up questions
+    const relatedQuestionsMap = {
+        "How can I build multi-agent workflows using Google's Agent Development Kit (ADK)?": [
+            "Can you provide a code example of a supervisor agent routing tasks to worker agents in ADK?",
+            "What are the best patterns for avoiding infinite loops in multi-agent collaboration in ADK?",
+            "How does message passing work between subagents when executing sequential tasks in ADK?"
+        ],
+        "What are the key architectural components of a Google Agent built with ADK?": [
+            "How does the lifecycle of a tool call run through the ADK run loop?",
+            "How does the state manager in ADK coordinate memory between different agent execution steps?",
+            "What is the role of context and system instructions in shaping an ADK agent's persona?"
+        ],
+        "How do Gemini AI models use thinking mode (reasoning) to solve complex coding tasks?": [
+            "How can we configure the maximum thinking budget and output tokens for Gemini models?",
+            "Does enabling thinking mode change the format of the output tokens or tool call JSON?",
+            "What types of complex coding problems benefit the most from enabling reasoning/thinking mode?"
+        ],
+        "Can you explain the main differences between Gemma 4 and Gemini 1.5 Pro?": [
+            "How do Gemma 4's lightweight models compare to Gemini 1.5 Flash in latency-sensitive tasks?",
+            "Can Gemma 4 run locally on consumer hardware while matching Gemini's capability for tool use?",
+            "What are the context window limit differences between the Gemma and Gemini model families?"
+        ],
+        "How do we handle state, memory, and context persistence in Google Agents?": [
+            "What databases or caching layers are recommended for production-grade agent memory?",
+            "How do you compress long chat histories to fit within an agent's context window?",
+            "Can you show how to implement semantic search based memory retrieval for an active session?"
+        ],
+        "What is the recommended prompt format for optimizing Gemini 1.5 Flash performance?": [
+            "How does system instructions configuration differ from in-context prompt templates for Gemini?",
+            "What are the best strategies for few-shot learning within a Gemini 1.5 Flash prompt?",
+            "How should multimodal content (like images or audio) be formatted alongside text in Gemini prompts?"
+        ],
+        "How does the Agent Development Kit (ADK) integrate with external tools and API schemas?": [
+            "Can you show how to map an OpenAPI / Swagger spec into an ADK tool definition?",
+            "How does ADK parse and validate the arguments returned by a model's tool call?",
+            "What is the recommended security architecture when allowing agents to run arbitrary API tools?"
+        ],
+        "What strategies can be used with Gemini models to minimize token usage in agent loops?": [
+            "How can prompt caching be utilized to reduce cost in multi-turn agent conversations?",
+            "What is the impact of context truncation on agent decision accuracy over long tasks?",
+            "Are there token-saving advantages to utilizing JSON schema constraints on outputs?"
+        ],
+        "How do you implement a fallback strategy in ADK when an agent's tool call fails?": [
+            "How does an agent self-correct using error messages from failed tool executions?",
+            "Can we configure ADK to automatically retry with a different model if a tool call crashes?",
+            "What design patterns help ensure that tool failures are handled gracefully without stopping the loop?"
+        ],
+        "What role does multimodal input play in voice-to-voice agents built on Gemini?": [
+            "How does Gemini's native audio output stream compare to traditional text-to-speech?",
+            "What are the design challenges in synchronizing real-time voice and video streams in Gemini?",
+            "Can a multimodal agent perform visual object recognition and speech generation in a single inference turn?"
+        ],
+        "Can you write a step-by-step guide to deploying a Gemini-powered agent on GCP?": [
+            "How do you secure API keys and service account permissions for Gemini deployed on Cloud Run?",
+            "What monitoring and logging tools on GCP are best for tracking agent execution traces?",
+            "How do you autoscale agent service containers to handle spike traffic without warm startup lag?"
+        ],
+        "How does ADK handle parallel execution of tasks using cooperative subagents?": [
+            "How does ADK resolve resource conflicts when multiple subagents try to access the same tool?",
+            "Can you explain the message passing protocol between parallel subagents in ADK?",
+            "What are the latency tradeoffs when running subagents in parallel vs. running them sequentially?"
+        ]
+    };
 
     // Load history on load
     loadHistory();
@@ -215,10 +280,18 @@ document.addEventListener("DOMContentLoaded", () => {
         renderFilePreview();
     }
 
-    // Textarea auto-resize
+    // Textarea auto-resize & Explore Related state checks
     promptInput.addEventListener("input", function() {
         this.style.height = "auto";
         this.style.height = (this.scrollHeight) + "px";
+        
+        const currentVal = this.value.trim();
+        if (currentVal === "") {
+            if (exploreRelatedBtn) exploreRelatedBtn.setAttribute("disabled", "true");
+        } else if (relatedQuestionsMap[currentVal]) {
+            lastRandomQuestion = currentVal;
+            enableExploreButtons();
+        }
     });
 
     // Check secure context warning
@@ -385,6 +458,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // Send Message & History Navigation & Random Question
     const randomQuestionBtn = document.getElementById("randomQuestionBtn");
     const welcomeRandomBtn = document.getElementById("welcomeRandomBtn");
+    const exploreRelatedBtn = document.getElementById("exploreRelatedBtn");
+    const welcomeExploreBtn = document.getElementById("welcomeExploreBtn");
 
     function generateRandomQuestion() {
         let currentVal = promptInput.value.trim();
@@ -398,6 +473,42 @@ document.addEventListener("DOMContentLoaded", () => {
         promptInput.value = question;
         promptInput.dispatchEvent(new Event("input"));
         promptInput.focus();
+
+        // Save last random question
+        lastRandomQuestion = question;
+        enableExploreButtons();
+    }
+
+    function enableExploreButtons() {
+        if (exploreRelatedBtn) {
+            exploreRelatedBtn.removeAttribute("disabled");
+        }
+        if (welcomeExploreBtn) {
+            welcomeExploreBtn.style.display = "flex";
+        }
+    }
+
+    function exploreRelatedQuestion() {
+        if (!lastRandomQuestion) {
+            // Fallback: Pick a random base question first
+            const randomIdx = Math.floor(Math.random() * randomQuestions.length);
+            lastRandomQuestion = randomQuestions[randomIdx];
+        }
+
+        const relatedList = relatedQuestionsMap[lastRandomQuestion];
+        if (relatedList && relatedList.length > 0) {
+            let currentVal = promptInput.value.trim();
+            let availableRelated = relatedList.filter(q => q !== currentVal);
+            if (availableRelated.length === 0) {
+                availableRelated = relatedList;
+            }
+            const randomIdx = Math.floor(Math.random() * availableRelated.length);
+            const followUp = availableRelated[randomIdx];
+
+            promptInput.value = followUp;
+            promptInput.dispatchEvent(new Event("input"));
+            promptInput.focus();
+        }
     }
 
     if (randomQuestionBtn) {
@@ -405,6 +516,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (welcomeRandomBtn) {
         welcomeRandomBtn.addEventListener("click", generateRandomQuestion);
+    }
+    if (exploreRelatedBtn) {
+        exploreRelatedBtn.addEventListener("click", exploreRelatedQuestion);
+    }
+    if (welcomeExploreBtn) {
+        welcomeExploreBtn.addEventListener("click", exploreRelatedQuestion);
     }
     if (readAloudBtn) {
         readAloudBtn.addEventListener("click", () => {
