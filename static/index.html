@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemma 4 e26b Interface</title>
+    <link rel="stylesheet" href="style.css?v=1.2">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- MarkedJS for Markdown rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar for History -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <h2>Prompt History</h2>
+            </div>
+            <div class="history-list" id="historyList">
+                <!-- Loaded dynamically -->
+                <div class="history-empty">No previous queries yet</div>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="main-content">
+            <header class="app-header">
+                <div class="model-info">
+                    <div class="model-select-wrapper">
+                        <select id="modelSelect" class="model-select">
+                            <option value="gemma-4-26b" selected>Gemma 4 26B</option>
+                            <option value="gemma-4-12b">Gemma 4 12B</option>
+                        </select>
+                        <i class="fa-solid fa-chevron-down dropdown-icon"></i>
+                    </div>
+                    <span class="status-indicator online"></span>
+                    <span class="status-text">Ready</span>
+                </div>
+                <h1>AI Voice Assistant</h1>
+            </header>
+
+            <div class="chat-container" id="chatContainer">
+                <div class="welcome-message">
+                    <div class="welcome-icon">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+                    <h2>Welcome to Gemma 4 e26b</h2>
+                    <p style="margin-bottom: 20px;">Ask a question by typing below or clicking the microphone icon for real-time voice entry.</p>
+                    <div class="suggestion-pills">
+                        <button type="button" class="suggestion-pill" id="welcomeRandomBtn" title="Generate random question">
+                            <i class="fa-solid fa-lightbulb"></i> Try a random question about Google Agents, ADK & Gemini
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Insecure Context Warning -->
+            <div class="insecure-warning" id="insecureWarning">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span>Voice input requires a secure context (localhost or HTTPS). Please access locally or set up HTTPS.</span>
+            </div>
+
+            <!-- Preprocessing Configuration & Input Area -->
+            <footer class="input-area">
+                <div class="settings-bar">
+                    <div class="settings-left">
+                        <span class="settings-title"><i class="fa-solid fa-sliders"></i> Token Preprocessing:</span>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" name="preprocess" value="none" checked>
+                                <span class="radio-button"></span> None (Raw)
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="preprocess" value="basic">
+                                <span class="radio-button"></span> Basic (Clean)
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="preprocess" value="advanced">
+                                <span class="radio-button"></span> Advanced (Voice)
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-center">
+                        <button id="randomQuestionBtn" type="button" class="random-q-btn" title="Generate random question">
+                            <i class="fa-solid fa-dice"></i> Random Question
+                        </button>
+                    </div>
+                    
+                    <div class="settings-right">
+                        <span class="settings-title"><i class="fa-solid fa-brain"></i> Thinking Mode:</span>
+                        <label class="switch">
+                            <input type="checkbox" id="thinkToggle" checked>
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Sleek Preview Container for Staged Files -->
+                <div id="filePreviewContainer" class="file-preview-container" style="display: none;"></div>
+
+                <div class="input-container" id="inputContainer">
+                    <button id="addFileBtn" type="button" class="action-btn add-file-btn" title="Attach image, wav, or webm" style="display: none;">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                    <input type="file" id="mediaFileInput" accept="image/*,audio/wav,video/webm" style="display: none;">
+                    
+                    <textarea id="promptInput" placeholder="Type a message or click mic to talk..." rows="1"></textarea>
+                    
+                    <button id="micBtn" type="button" class="action-btn mic-btn" title="Voice Entry">
+                        <i class="fa-solid fa-microphone"></i>
+                    </button>
+                    
+                    <button id="readAloudBtn" type="button" class="action-btn read-aloud-btn" title="Read Aloud Highlighted Text">
+                        <i class="fa-solid fa-volume-high"></i>
+                    </button>
+                    
+                    <button id="sendBtn" type="button" class="action-btn send-btn" title="Send Query">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </div>
+                <div class="voice-status" id="voiceStatus">Listening...</div>
+            </footer>
+        </main>
+    </div>
+
+    <!-- Detail Modal for History Prompt Retrieval -->
+    <div class="modal" id="detailModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Query Details</h2>
+                <button class="close-btn" id="closeModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-section">
+                    <h3>Original Prompt</h3>
+                    <p id="modalPrompt" class="text-box"></p>
+                </div>
+                <div class="detail-section">
+                    <h3>Metadata</h3>
+                    <div style="display: flex; gap: 10px; margin-top: 5px;">
+                        <span id="modalModel" class="badge model-badge-meta"></span>
+                        <span id="modalOption" class="badge"></span>
+                        <span id="modalThink" class="badge"></span>
+                    </div>
+                </div>
+                <div class="detail-section">
+                    <h3>Preprocessed Prompt Sent to Gemma</h3>
+                    <p id="modalPreprocessed" class="text-box code-font"></p>
+                </div>
+                <div class="detail-section">
+                    <h3>Model Response</h3>
+                    <div id="modalResponse" class="text-box response-box markdown-body"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js?v=1.4"></script>
+</body>
+</html>

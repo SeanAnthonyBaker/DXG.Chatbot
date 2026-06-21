@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+requests
+pydantic
+sqlite3-api; python_version < '3.0' # sqlite3 is built-in for Python 3, but we note it.
