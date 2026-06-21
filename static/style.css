@@ -1036,3 +1036,45 @@ input:checked + .slider:before {
     pointer-events: none;
 }
 
+/* Prevent text highlighting during active streaming to avoid selection resets */
+.message-bubble.streaming {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* Inline speak button inside message metadata */
+.msg-meta-speak-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    margin-left: 10px;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.msg-meta-speak-btn:hover {
+    color: var(--accent-secondary);
+}
+
+.msg-meta-speak-btn.active {
+    color: #10b981;
+    text-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+}
+
+.msg-meta-speak-btn i {
+    font-size: 0.8rem;
+}
+
+/* Global buttons disabled visual state */
+.action-btn:disabled {
+    opacity: 0.4 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+}
+

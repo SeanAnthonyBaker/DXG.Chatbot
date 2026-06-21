@@ -34,6 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let recordingLength = 0;
     let sampleRate = 0;
     let isRecording = false;
+    let isStreaming = false;
 
     // Arrow history navigation state variables
     let historyQuestions = [];
@@ -525,6 +526,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (readAloudBtn) {
         readAloudBtn.addEventListener("click", () => {
+            if (isStreaming) return; // Prevent interference during active response generation
+            
             if (!('speechSynthesis' in window)) {
                 alert("Text-to-speech is not supported in this browser.");
                 return;
@@ -532,6 +535,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (window.speechSynthesis.speaking) {
                 window.speechSynthesis.cancel();
+                if (activeSpeakBtn) {
+                    updateMsgSpeakBtnState(activeSpeakBtn, false);
+                    activeSpeakBtn = null;
+                }
                 updateReadAloudState(false);
                 return;
             }
@@ -580,11 +587,110 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         } else {
             readAloudBtn.classList.remove("active");
-            readAloudBtn.title = "Read Aloud Highlighted Text";
+            updateGlobalReadAloudState();
             if (icon) {
                 icon.className = "fa-solid fa-volume-high";
             }
         }
+    }
+
+    function updateGlobalReadAloudState() {
+        if (!readAloudBtn) return;
+        if (isStreaming) {
+            readAloudBtn.setAttribute("disabled", "true");
+            readAloudBtn.title = "Read Aloud is disabled during response generation";
+        } else {
+            readAloudBtn.removeAttribute("disabled");
+            readAloudBtn.title = "Read Aloud Highlighted Text";
+        }
+    }
+
+    // Message-specific TTS controls
+    let currentUtterance = null;
+    let activeSpeakBtn = null;
+
+    function toggleMessageSpeech(bubbleEl, speakBtnEl) {
+        if (!('speechSynthesis' in window)) {
+            alert("Text-to-speech is not supported in this browser.");
+            return;
+        }
+
+        if (window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+            updateReadAloudState(false);
+            
+            // If the clicked button was the active one, we just stop it and return
+            if (activeSpeakBtn === speakBtnEl) {
+                updateMsgSpeakBtnState(speakBtnEl, false);
+                activeSpeakBtn = null;
+                currentUtterance = null;
+                return;
+            }
+            
+            // Reset the previous active button
+            if (activeSpeakBtn) {
+                updateMsgSpeakBtnState(activeSpeakBtn, false);
+            }
+        }
+
+        const textToRead = bubbleEl.innerText.trim();
+        if (!textToRead) return;
+
+        const utterance = new SpeechSynthesisUtterance(textToRead);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+
+        utterance.onstart = () => {
+            activeSpeakBtn = speakBtnEl;
+            currentUtterance = utterance;
+            updateMsgSpeakBtnState(speakBtnEl, true);
+        };
+        utterance.onend = () => {
+            updateMsgSpeakBtnState(speakBtnEl, false);
+            if (activeSpeakBtn === speakBtnEl) {
+                activeSpeakBtn = null;
+                currentUtterance = null;
+            }
+        };
+        utterance.onerror = (e) => {
+            console.error("SpeechSynthesis error:", e);
+            updateMsgSpeakBtnState(speakBtnEl, false);
+            if (activeSpeakBtn === speakBtnEl) {
+                activeSpeakBtn = null;
+                currentUtterance = null;
+            }
+        };
+
+        window.speechSynthesis.speak(utterance);
+    }
+
+    function updateMsgSpeakBtnState(btnEl, isPlaying) {
+        const icon = btnEl.querySelector("i");
+        if (isPlaying) {
+            btnEl.classList.add("active");
+            btnEl.title = "Stop Listening";
+            btnEl.innerHTML = `<i class="fa-solid fa-circle-stop"></i> Stop`;
+        } else {
+            btnEl.classList.remove("active");
+            btnEl.title = "Read Aloud";
+            btnEl.innerHTML = `<i class="fa-solid fa-volume-high"></i> Listen`;
+        }
+    }
+
+    function addInlineListenButton(bubbleEl, msgEl) {
+        const metaEl = msgEl.querySelector(".message-meta");
+        if (!metaEl) return;
+        
+        const speakBtn = document.createElement("button");
+        speakBtn.className = "msg-meta-speak-btn";
+        speakBtn.title = "Read Aloud";
+        speakBtn.innerHTML = `<i class="fa-solid fa-volume-high"></i> Listen`;
+        
+        speakBtn.addEventListener("click", () => {
+            toggleMessageSpeech(bubbleEl, speakBtn);
+        });
+        
+        metaEl.appendChild(speakBtn);
     }
 
     // Cancel speech when page is unloaded
@@ -634,6 +740,16 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     async function sendMessage() {
+        // Stop any active text-to-speech playback and reset button states
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            if (activeSpeakBtn) {
+                updateMsgSpeakBtnState(activeSpeakBtn, false);
+                activeSpeakBtn = null;
+            }
+            updateReadAloudState(false);
+        }
+
         // Reset history scroll state
         historyIndex = -1;
         draftPrompt = "";
@@ -687,6 +803,11 @@ document.addEventListener("DOMContentLoaded", () => {
         // Render Assistant Message (Placeholder with Spinner)
         const assistantMsgEl = appendMessage("assistant", `<div class="spinner"></div>`);
         const bubble = assistantMsgEl.querySelector(".message-bubble");
+
+        // Enable selection lock and global streaming state
+        bubble.classList.add("streaming");
+        isStreaming = true;
+        updateGlobalReadAloudState();
 
         try {
             const response = await fetch("/api/query", {
@@ -751,9 +872,17 @@ document.addEventListener("DOMContentLoaded", () => {
             // Reload history to show new prompt
             loadHistory();
 
+            // Inject the Listen button into the metadata for this completed bubble
+            addInlineListenButton(bubble, assistantMsgEl);
+
         } catch (error) {
             bubble.innerHTML = `<span style="color: #ef4444;"><i class="fa-solid fa-triangle-exclamation"></i> Error: ${error.message}</span>`;
             console.error(error);
+        } finally {
+            // Remove selection lock and reset streaming flag
+            bubble.classList.remove("streaming");
+            isStreaming = false;
+            updateGlobalReadAloudState();
         }
     }
 
