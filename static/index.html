@@ -34,13 +34,40 @@
                 <div class="model-info">
                     <div class="model-select-wrapper">
                         <select id="modelSelect" class="model-select">
-                            <option value="gemma-4-26b" selected>Gemma 4 26B</option>
-                            <option value="gemma-4-12b">Gemma 4 12B</option>
+                            <option value="gemma-4-12b" selected>Gemma 4 12B-IT (MTP)</option>
+                            <option value="glm-4-voice">GLM-4-Voice</option>
+                            <option value="qwen-3.6-35b-a3b">Qwen 3.6 35B-A3B</option>
+                            <option value="gemma-4-26b">Gemma 4 26B</option>
+                            <option value="gemma-4-e4b">Gemma 4 e4b</option>
+                            <option value="gemma-4-12b-python">Gemma 4 12b - Python trained</option>
                         </select>
                         <i class="fa-solid fa-chevron-down dropdown-icon"></i>
                     </div>
-                    <span class="status-indicator online"></span>
-                    <span class="status-text">Ready</span>
+
+                    <!-- Reasoning Toggle Next to Model ID -->
+                    <div class="header-reasoning-toggle" id="reasoningToggleContainer" title="Click to toggle reasoning mode">
+                        <span class="reasoning-label"><i class="fa-solid fa-brain" id="reasoningBrainIcon"></i> Reasoning:</span>
+                        <label class="header-switch">
+                            <input type="checkbox" id="thinkToggle" title="Enable/Disable model internal reasoning output">
+                            <span class="slider"></span>
+                        </label>
+                        <span id="reasoningStatusBadge" class="reasoning-badge off">OFF</span>
+                    </div>
+
+                    <button id="headerCancelBtn" class="header-cancel-btn" title="Cancel active verbal questions, LLM generation, or spoken answer reading">
+                        <i class="fa-solid fa-circle-xmark"></i> <span class="btn-label">Cancel / Stop</span>
+                    </button>
+
+                    <div class="status-wrapper">
+                        <span id="statusIndicator" class="status-indicator online"></span>
+                        <span id="statusText" class="status-text">Ready</span>
+                    </div>
+                    <span id="headerTpsBadge" class="header-tps-badge" style="display: none; align-items: center; gap: 4px; background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; margin-left: 6px;">
+                        <i class="fa-solid fa-bolt" style="color: #818cf8; font-size: 0.7rem;"></i> <span id="headerTpsVal">0.0</span> tok/s
+                    </span>
+                    <span id="preferredMediaBadge" class="preferred-media-badge" style="display: none; align-items: center; gap: 6px; background: rgba(244, 63, 94, 0.15); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.35); padding: 3px 10px; border-radius: 16px; font-size: 0.78rem; font-weight: 600; margin-left: 4px;" title="Voice input & spoken audio output is preferred for GLM-4-Voice & Gemma 4 e4b">
+                        <i class="fa-solid fa-microphone-lines" style="color: #fb7185;"></i> Preferred Media: Voice
+                    </span>
                 </div>
                 <h1>AI Voice Assistant</h1>
             </header>
@@ -50,7 +77,7 @@
                     <div class="welcome-icon">
                         <i class="fa-solid fa-wand-magic-sparkles"></i>
                     </div>
-                    <h2>Welcome to Gemma 4 e26b</h2>
+                    <h2>Welcome to Gemma 4 12B</h2>
                     <p style="margin-bottom: 20px;">Ask a question by typing below or clicking the microphone icon for real-time voice entry.</p>
                     <div class="suggestion-pills">
                         <button type="button" class="suggestion-pill" id="welcomeRandomBtn" title="Generate random question">
@@ -72,39 +99,147 @@
             <!-- Preprocessing Configuration & Input Area -->
             <footer class="input-area">
                 <div class="settings-bar">
-                    <div class="settings-left">
-                        <span class="settings-title"><i class="fa-solid fa-sliders"></i> Token Preprocessing:</span>
-                        <div class="radio-group">
-                            <label class="radio-label">
-                                <input type="radio" name="preprocess" value="none" checked>
-                                <span class="radio-button"></span> None (Raw)
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" name="preprocess" value="basic">
-                                <span class="radio-button"></span> Basic (Clean)
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" name="preprocess" value="advanced">
-                                <span class="radio-button"></span> Advanced (Voice)
-                            </label>
+                    <!-- Group 1: Voice Model & Speech Parameters -->
+                    <div class="settings-group-card">
+                        <span class="settings-group-tag" style="color: #38bdf8; background: rgba(56, 189, 248, 0.12);">
+                            <i class="fa-solid fa-microphone"></i> Voice Model
+                        </span>
+                        
+                        <!-- Voice Controls Panel -->
+                        <div id="spokenParamsWrapper" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                            <!-- Voice Model Engine (E4B or GLM, kept loaded in RAM) -->
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span class="settings-title" title="Select Voice Model Engine (Kept loaded in RAM with main model)"><i class="fa-solid fa-microchip" style="color: #fb7185;"></i> Voice Model:</span>
+                                <div class="model-select-wrapper" style="position: relative;">
+                                    <select id="spokenVoiceEngineSelect" class="model-select" style="padding: 3px 24px 3px 10px; font-size: 0.8rem; height: 28px;">
+                                        <option value="e4b" selected>Gemma 4 e4b Voice</option>
+                                        <option value="12b">Gemma 4 12B Voice</option>
+                                        <option value="glm4">GLM-4-Voice</option>
+                                        <option value="tts">Native Multilingual TTS</option>
+                                    </select>
+                                    <i class="fa-solid fa-chevron-down dropdown-icon" style="font-size: 0.6rem; right: 8px; pointer-events: none;"></i>
+                                </div>
+                            </div>
+
+                            <!-- Language -->
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span class="settings-title" title="Select Read-back Language"><i class="fa-solid fa-language" style="color: #a78bfa;"></i> Language:</span>
+                                <div class="model-select-wrapper" style="position: relative;">
+                                    <select id="spokenLangSelect" class="model-select" style="padding: 3px 24px 3px 10px; font-size: 0.8rem; height: 28px;">
+                                        <option value="en-US" selected>English - US (en-US)</option>
+                                        <option value="en-GB">English - UK (en-GB)</option>
+                                        <option value="en-IE">Irish English (en-IE)</option>
+                                        <option value="en-NZ">Kiwi English (en-NZ)</option>
+                                        <option value="en-AU">Australian English (en-AU)</option>
+                                        <option value="ru-RU">Russian (ru-RU)</option>
+                                        <option value="es-ES">Spanish (es-ES)</option>
+                                        <option value="fr-FR">French (fr-FR)</option>
+                                        <option value="de-DE">German (de-DE)</option>
+                                        <option value="it-IT">Italian (it-IT)</option>
+                                        <option value="pt-BR">Portuguese (pt-BR)</option>
+                                        <option value="nl-NL">Dutch (nl-NL)</option>
+                                        <option value="pl-PL">Polish (pl-PL)</option>
+                                        <option value="tr-TR">Turkish (tr-TR)</option>
+                                        <option value="ja-JP">Japanese (ja-JP)</option>
+                                        <option value="ko-KR">Korean (ko-KR)</option>
+                                        <option value="zh-CN">Chinese (zh-CN)</option>
+                                        <option value="ar-SA">Arabic (ar-SA)</option>
+                                        <option value="hi-IN">Hindi (hi-IN)</option>
+                                    </select>
+                                    <i class="fa-solid fa-chevron-down dropdown-icon" style="font-size: 0.6rem; right: 8px; pointer-events: none;"></i>
+                                </div>
+                            </div>
+
+                            <!-- Persona -->
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span class="settings-title" title="Select Voice Persona & Tone Style"><i class="fa-solid fa-user-astronaut" style="color: #34d399;"></i> Persona:</span>
+                                <div class="model-select-wrapper" style="position: relative;">
+                                    <select id="spokenPersonaSelect" class="model-select" style="padding: 3px 24px 3px 10px; font-size: 0.8rem; height: 28px;">
+                                        <option value="natural" selected>Natural Assistant</option>
+                                        <option value="professional">Professional & Concise</option>
+                                        <option value="expressive">Expressive & Energetic</option>
+                                        <option value="calm">Calm & Conversational</option>
+                                        <option value="academic">Academic & Detailed</option>
+                                    </select>
+                                    <i class="fa-solid fa-chevron-down dropdown-icon" style="font-size: 0.6rem; right: 8px; pointer-events: none;"></i>
+                                </div>
+                            </div>
+
+                            <!-- Speed -->
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span class="settings-title" title="Select Voice Speed (0.75x to 2.0x)"><i class="fa-solid fa-gauge-high" style="color: #38bdf8;"></i> Speed:</span>
+                                <div class="model-select-wrapper" style="position: relative;">
+                                    <select id="spokenSpeedSelect" class="model-select" style="padding: 3px 24px 3px 10px; font-size: 0.8rem; height: 28px;">
+                                        <option value="0.75">0.75x (Slow)</option>
+                                        <option value="1.0" selected>1.0x (Normal)</option>
+                                        <option value="1.25">1.25x (Brisk)</option>
+                                        <option value="1.5">1.5x (Fast)</option>
+                                        <option value="1.75">1.75x (Very Fast)</option>
+                                        <option value="2.0">2.0x (Double Speed)</option>
+                                    </select>
+                                    <i class="fa-solid fa-chevron-down dropdown-icon" style="font-size: 0.6rem; right: 8px; pointer-events: none;"></i>
+                                </div>
+                            </div>
+
+                            <!-- Speech Preprocessing Dropdown -->
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span class="settings-title" title="Clean filler words (ums, ahs, ers) and speech pauses from input"><i class="fa-solid fa-wand-magic-sparkles" style="color: #6366f1;"></i> Preprocessing:</span>
+                                <div class="model-select-wrapper" style="position: relative;">
+                                    <select id="preprocessSelect" name="preprocess" class="model-select" style="padding: 3px 24px 3px 10px; font-size: 0.8rem; height: 28px;">
+                                        <option value="clean" selected>Active (Remove Ums & Ahs)</option>
+                                        <option value="none">Off (Raw)</option>
+                                    </select>
+                                    <i class="fa-solid fa-chevron-down dropdown-icon" style="font-size: 0.6rem; right: 8px; pointer-events: none;"></i>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    
-                    <div class="settings-center" style="display: flex; gap: 8px;">
-                        <button id="randomQuestionBtn" type="button" class="random-q-btn" title="Generate random question">
-                            <i class="fa-solid fa-dice"></i> Random Question
-                        </button>
-                        <button id="exploreRelatedBtn" type="button" class="random-q-btn explore-btn" title="Explore related question" disabled>
-                            <i class="fa-solid fa-compass"></i> Explore Related
-                        </button>
-                    </div>
-                    
-                    <div class="settings-right">
-                        <span class="settings-title"><i class="fa-solid fa-brain"></i> Thinking Mode:</span>
-                        <label class="switch">
-                            <input type="checkbox" id="thinkToggle" checked>
-                            <span class="slider round"></span>
-                        </label>
+
+                    <!-- Group 2: NotebookLM Scope & Output Format -->
+                    <div class="settings-group-card">
+                        <span class="settings-group-tag" style="color: #38bdf8; background: rgba(56, 189, 248, 0.12);">
+                            <i class="fa-solid fa-compass-drafting"></i> Grounding & Scope
+                        </span>
+                        
+                        <!-- NotebookLM Scope Option with selected notebook search -->
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="settings-title"><i class="fa-solid fa-book-open" style="color: #38bdf8;"></i> NotebookLM Scope:</span>
+                            <label class="switch">
+                                <input type="checkbox" id="notebookToggle" title="Ground response against selected NotebookLM notebook">
+                                <span class="slider round"></span>
+                            </label>
+                            <div class="model-select-wrapper" id="notebookSelectWrapper" style="display: none; min-width: 220px; position: relative;">
+                                <input type="text" id="notebookSearchInput" class="model-select" style="padding: 4px 28px 4px 10px; font-size: 0.8rem; height: 28px; line-height: 1; width: 100%; box-sizing: border-box; cursor: text;" placeholder="Search notebook..." autocomplete="off">
+                                <i class="fa-solid fa-chevron-down dropdown-icon" style="font-size: 0.6rem; right: 8px; pointer-events: none;"></i>
+                                <div id="notebookDropdownList" class="search-dropdown-list"></div>
+                            </div>
+                        </div>
+
+                        <!-- Output Format Dropdown -->
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span class="settings-title" title="Select Output Response Format"><i class="fa-solid fa-file-lines" style="color: #a855f7;"></i> Output Format:</span>
+                            <div class="model-select-wrapper" style="position: relative;">
+                                <select id="outputFormatSelect" class="model-select" style="padding: 3px 24px 3px 10px; font-size: 0.8rem; height: 28px;">
+                                    <option value="paragraph" selected>Paragraph & Text</option>
+                                    <option value="code">Code & Technical</option>
+                                    <option value="bullets">Bullet Points & Summary</option>
+                                    <option value="tutorial">Step-by-Step Guide</option>
+                                    <option value="table">Markdown Table</option>
+                                    <option value="json">JSON / Schema</option>
+                                </select>
+                                <i class="fa-solid fa-chevron-down dropdown-icon" style="font-size: 0.6rem; right: 8px; pointer-events: none;"></i>
+                            </div>
+                        </div>
+
+                        <!-- Prompt Helpers -->
+                        <div style="display: flex; gap: 8px; margin-left: auto;">
+                            <button id="randomQuestionBtn" type="button" class="random-q-btn" title="Generate random question">
+                                <i class="fa-solid fa-dice"></i> Random Question
+                            </button>
+                            <button id="exploreRelatedBtn" type="button" class="random-q-btn explore-btn" title="Explore related question" disabled>
+                                <i class="fa-solid fa-compass"></i> Explore Related
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -117,14 +252,27 @@
                     </button>
                     <input type="file" id="mediaFileInput" accept="image/*,audio/wav,video/webm" style="display: none;">
                     
-                    <textarea id="promptInput" placeholder="Type a message or click mic to talk..." rows="1"></textarea>
+                    <textarea id="promptInput" placeholder="Type a message or click Voice Input to talk..." rows="1"></textarea>
                     
-                    <button id="micBtn" type="button" class="action-btn mic-btn" title="Voice Entry">
-                        <i class="fa-solid fa-microphone"></i>
+                    <!-- Waveform Visualizer (shown during recording) -->
+                    <div id="voiceWaveContainer" class="voice-wave-container" style="display: none;">
+                        <canvas id="voiceWaveCanvas" width="120" height="32"></canvas>
+                    </div>
+
+                    <!-- Big Red 3D Voice Input Button in Query Bar (Shown ONLY when Gemma 4 e4b model is loaded) -->
+                    <button id="bigRedMicBtn" type="button" class="big-red-3d-btn" style="display: none;" title="Press and hold to record voice input">
+                        <i class="fa-solid fa-microphone"></i> <span>Press to speak</span>
                     </button>
+
+                    <!-- Voice Chat Toggle (STT vs Direct E4B) — only visible with E4B -->
+                    <label id="voiceChatLabel" class="voice-chat-toggle-label" style="display: none;" title="Voice Chat: send audio directly to E4B for immediate response">
+                        <input type="checkbox" id="voiceChatToggle">
+                        <span class="voice-chat-slider"></span>
+                        <span class="voice-chat-text">Voice Chat</span>
+                    </label>
                     
-                    <button id="readAloudBtn" type="button" class="action-btn read-aloud-btn" title="Read Aloud Highlighted Text">
-                        <i class="fa-solid fa-volume-high"></i>
+                    <button id="cancelQueryBtn" type="button" class="action-btn cancel-btn" style="display: none;" title="Cancel Voice Input / Stop Reading Answer">
+                        <i class="fa-solid fa-ban"></i>
                     </button>
                     
                     <button id="sendBtn" type="button" class="action-btn send-btn" title="Send Query">
@@ -168,6 +316,144 @@
         </div>
     </div>
 
-    <script src="script.js?v=1.4"></script>
+    <!-- Real-Time S2S Live Voice Mode Overlay Modal -->
+    <div class="live-voice-overlay" id="liveVoiceOverlay">
+        <div class="live-voice-card">
+            <button class="live-voice-close-btn" id="closeLiveVoiceBtn">&times;</button>
+            <div class="live-voice-header">
+                <i class="fa-solid fa-tower-broadcast live-icon"></i>
+                <h2>Real-Time Duplex Voice Session</h2>
+                <span id="liveVoiceStatus" class="live-status-badge connecting">Connecting to S2S Daemon...</span>
+            </div>
+            
+            <div class="visualizer-container">
+                <div class="visualizer-ring ring-outer"></div>
+                <div class="visualizer-ring ring-inner"></div>
+                <div class="visualizer-core" id="visualizerCore">
+                    <i class="fa-solid fa-microphone" id="visualizerMicIcon"></i>
+                </div>
+            </div>
+            
+            <div class="s2s-params-container" style="display: flex; flex-direction: column; gap: 8px; margin: 12px 0 8px 0; align-items: center;">
+                <!-- Line 1: Thinking Mode, Answer Length, Streaming -->
+                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-brain" style="color: #10b981; font-size: 0.9rem;"></i>
+                        <label for="s2sThinkSelect" style="color: #cbd5e1; font-size: 0.85rem; font-weight: 500;">Thinking Mode:</label>
+                        <select id="s2sThinkSelect" style="padding: 4px 10px; font-size: 0.8rem; height: 32px; border-radius: 8px; background: rgba(30, 41, 59, 0.9); color: #f8fafc; border: 1px solid rgba(16, 185, 129, 0.4); cursor: pointer; outline: none;">
+                            <option value="off" selected>Off</option>
+                            <option value="on">On</option>
+                        </select>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-text-height" style="color: #f59e0b; font-size: 0.9rem;"></i>
+                        <label for="s2sLengthSelect" style="color: #cbd5e1; font-size: 0.85rem; font-weight: 500;">Answer Length:</label>
+                        <select id="s2sLengthSelect" style="padding: 4px 10px; font-size: 0.8rem; height: 32px; border-radius: 8px; background: rgba(30, 41, 59, 0.9); color: #f8fafc; border: 1px solid rgba(245, 158, 11, 0.4); cursor: pointer; outline: none;">
+                            <option value="concise" selected>Concise</option>
+                            <option value="detailed">Detailed</option>
+                        </select>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-bolt" style="color: #a855f7; font-size: 0.9rem;"></i>
+                        <label for="s2sStreamSelect" style="color: #cbd5e1; font-size: 0.85rem; font-weight: 500;">Streaming:</label>
+                        <select id="s2sStreamSelect" style="padding: 4px 10px; font-size: 0.8rem; height: 32px; border-radius: 8px; background: rgba(30, 41, 59, 0.9); color: #f8fafc; border: 1px solid rgba(168, 85, 247, 0.4); cursor: pointer; outline: none;">
+                            <option value="on" selected>On</option>
+                            <option value="off">Off</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Line 2: Voice Speed, Persona, Format, Language -->
+                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-gauge-high" style="color: #38bdf8; font-size: 0.9rem;"></i>
+                        <label for="s2sSpeedSelect" style="color: #cbd5e1; font-size: 0.85rem; font-weight: 500;">Voice Speed:</label>
+                        <select id="s2sSpeedSelect" style="padding: 4px 10px; font-size: 0.8rem; height: 32px; border-radius: 8px; background: rgba(30, 41, 59, 0.9); color: #f8fafc; border: 1px solid rgba(56, 189, 248, 0.4); cursor: pointer; outline: none;">
+                            <option value="0.75">🐢 0.75x (Slow)</option>
+                            <option value="1.0" selected>🎯 1.0x (Normal)</option>
+                            <option value="1.25">⚡ 1.25x (Brisk)</option>
+                            <option value="1.5">🚀 1.5x (Fast)</option>
+                            <option value="1.75">🏎️ 1.75x (Very Fast)</option>
+                            <option value="2.0">💥 2.0x (Double Speed)</option>
+                        </select>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-user-astronaut" style="color: #34d399; font-size: 0.9rem;"></i>
+                        <label for="s2sPersonaSelect" style="color: #cbd5e1; font-size: 0.85rem; font-weight: 500;">Persona:</label>
+                        <select id="s2sPersonaSelect" style="padding: 4px 10px; font-size: 0.8rem; height: 32px; border-radius: 8px; background: rgba(30, 41, 59, 0.9); color: #f8fafc; border: 1px solid rgba(52, 211, 153, 0.4); cursor: pointer; outline: none;">
+                            <option value="natural" selected>🌟 Natural Assistant</option>
+                            <option value="professional">👔 Professional & Concise</option>
+                            <option value="expressive">🎭 Expressive & Energetic</option>
+                            <option value="calm">🧘 Calm & Conversational</option>
+                            <option value="academic">🎓 Academic & Detailed</option>
+                        </select>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-file-lines" style="color: #ec4899; font-size: 0.9rem;"></i>
+                        <label for="s2sFormatSelect" style="color: #cbd5e1; font-size: 0.85rem; font-weight: 500;">Format:</label>
+                        <select id="s2sFormatSelect" style="padding: 4px 10px; font-size: 0.8rem; height: 32px; border-radius: 8px; background: rgba(30, 41, 59, 0.9); color: #f8fafc; border: 1px solid rgba(236, 72, 153, 0.4); cursor: pointer; outline: none;">
+                            <option value="plain" selected>Plain text</option>
+                            <option value="markdown">Markdown</option>
+                        </select>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-language" style="color: #a78bfa; font-size: 0.95rem;"></i>
+                        <label for="s2sLangSelect" style="color: #cbd5e1; font-size: 0.85rem; font-weight: 500;">Language:</label>
+                        <select id="s2sLangSelect" style="padding: 4px 10px; font-size: 0.8rem; height: 32px; border-radius: 8px; background: rgba(30, 41, 59, 0.9); color: #f8fafc; border: 1px solid rgba(167, 139, 250, 0.4); cursor: pointer; outline: none;">
+                            <option value="en-US" selected>English - US (en-US)</option>
+                            <option value="en-GB">English - UK (en-GB)</option>
+                            <option value="en-IE">Irish English (en-IE)</option>
+                            <option value="en-NZ">Kiwi English (en-NZ)</option>
+                            <option value="en-AU">Australian English (en-AU)</option>
+                            <option value="ru-RU">Russian (ru-RU)</option>
+                            <option value="es-ES">Spanish (es-ES)</option>
+                            <option value="fr-FR">French (fr-FR)</option>
+                            <option value="de-DE">German (de-DE)</option>
+                            <option value="it-IT">Italian (it-IT)</option>
+                            <option value="pt-BR">Portuguese (pt-BR)</option>
+                            <option value="nl-NL">Dutch (nl-NL)</option>
+                            <option value="pl-PL">Polish (pl-PL)</option>
+                            <option value="tr-TR">Turkish (tr-TR)</option>
+                            <option value="ja-JP">Japanese (ja-JP)</option>
+                            <option value="ko-KR">Korean (ko-KR)</option>
+                            <option value="zh-CN">Chinese (zh-CN)</option>
+                            <option value="ar-SA">Arabic (ar-SA)</option>
+                            <option value="hi-IN">Hindi (hi-IN)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="live-transcript-box" id="liveTranscriptBox">
+                <p class="transcript-placeholder">Speak naturally into your microphone. Listening...</p>
+            </div>
+            
+            <div class="live-voice-controls">
+                <button class="live-control-btn mic-talk-btn" id="s2sMicTalkBtn" title="Hold or Tap to Speak">
+                    <i class="fa-solid fa-microphone"></i> Press to Speak
+                </button>
+                <button class="live-control-btn end-call-btn" id="endLiveVoiceBtn">
+                    <i class="fa-solid fa-phone-slash"></i> End Session
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Right-Click Context Menu for Reading Selected/Highlighted Text -->
+    <div id="textContextMenu" class="text-context-menu" style="display: none;">
+        <div class="context-menu-item" id="contextReadSelectedBtn">
+            <i class="fa-solid fa-volume-high" style="color: #38bdf8;"></i> <span>Read Selected Text Aloud</span>
+        </div>
+        <div class="context-menu-item" id="contextCopyBtn">
+            <i class="fa-solid fa-copy" style="color: #a78bfa;"></i> <span>Copy Text</span>
+        </div>
+    </div>
+
+    <script src="script.js?v=14.3"></script>
 </body>
 </html>
