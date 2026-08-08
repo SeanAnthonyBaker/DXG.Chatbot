@@ -123,43 +123,24 @@
 
                             <!-- Language -->
                             <div style="display: flex; align-items: center; gap: 6px;">
-                                <span class="settings-title" title="Select Read-back Language"><i class="fa-solid fa-language" style="color: #a78bfa;"></i> Language:</span>
+                                <span class="settings-title" title="Select Primary Language"><i class="fa-solid fa-language" style="color: #a78bfa;"></i> Language:</span>
                                 <div class="model-select-wrapper" style="position: relative;">
                                     <select id="spokenLangSelect" class="model-select" style="padding: 3px 24px 3px 10px; font-size: 0.8rem; height: 28px;">
-                                        <option value="en-US" selected>English - US (en-US)</option>
-                                        <option value="en-GB">English - UK (en-GB)</option>
-                                        <option value="en-IE">Irish English (en-IE)</option>
-                                        <option value="en-NZ">Kiwi English (en-NZ)</option>
-                                        <option value="en-AU">Australian English (en-AU)</option>
-                                        <option value="ru-RU">Russian (ru-RU)</option>
-                                        <option value="es-ES">Spanish (es-ES)</option>
-                                        <option value="fr-FR">French (fr-FR)</option>
-                                        <option value="de-DE">German (de-DE)</option>
-                                        <option value="it-IT">Italian (it-IT)</option>
-                                        <option value="pt-BR">Portuguese (pt-BR)</option>
-                                        <option value="nl-NL">Dutch (nl-NL)</option>
-                                        <option value="pl-PL">Polish (pl-PL)</option>
-                                        <option value="tr-TR">Turkish (tr-TR)</option>
-                                        <option value="ja-JP">Japanese (ja-JP)</option>
-                                        <option value="ko-KR">Korean (ko-KR)</option>
-                                        <option value="zh-CN">Chinese (zh-CN)</option>
-                                        <option value="ar-SA">Arabic (ar-SA)</option>
-                                        <option value="hi-IN">Hindi (hi-IN)</option>
-                                    </select>
-                                    <i class="fa-solid fa-chevron-down dropdown-icon" style="font-size: 0.6rem; right: 8px; pointer-events: none;"></i>
-                                </div>
-                            </div>
-
-                            <!-- Persona -->
-                            <div style="display: flex; align-items: center; gap: 6px;">
-                                <span class="settings-title" title="Select Voice Persona & Tone Style"><i class="fa-solid fa-user-astronaut" style="color: #34d399;"></i> Persona:</span>
-                                <div class="model-select-wrapper" style="position: relative;">
-                                    <select id="spokenPersonaSelect" class="model-select" style="padding: 3px 24px 3px 10px; font-size: 0.8rem; height: 28px;">
-                                        <option value="natural" selected>Natural Assistant</option>
-                                        <option value="professional">Professional & Concise</option>
-                                        <option value="expressive">Expressive & Energetic</option>
-                                        <option value="calm">Calm & Conversational</option>
-                                        <option value="academic">Academic & Detailed</option>
+                                        <option value="en" selected>English</option>
+                                        <option value="es">Spanish</option>
+                                        <option value="fr">French</option>
+                                        <option value="de">German</option>
+                                        <option value="it">Italian</option>
+                                        <option value="pt">Portuguese</option>
+                                        <option value="nl">Dutch</option>
+                                        <option value="pl">Polish</option>
+                                        <option value="tr">Turkish</option>
+                                        <option value="ru">Russian</option>
+                                        <option value="ja">Japanese</option>
+                                        <option value="ko">Korean</option>
+                                        <option value="zh-CN">Chinese</option>
+                                        <option value="ar">Arabic</option>
+                                        <option value="hi">Hindi</option>
                                     </select>
                                     <i class="fa-solid fa-chevron-down dropdown-icon" style="font-size: 0.6rem; right: 8px; pointer-events: none;"></i>
                                 </div>
@@ -171,8 +152,8 @@
                                 <div class="model-select-wrapper" style="position: relative;">
                                     <select id="spokenSpeedSelect" class="model-select" style="padding: 3px 24px 3px 10px; font-size: 0.8rem; height: 28px;">
                                         <option value="0.75">0.75x (Slow)</option>
-                                        <option value="1.0" selected>1.0x (Normal)</option>
-                                        <option value="1.25">1.25x (Brisk)</option>
+                                        <option value="1.0">1.0x (Normal)</option>
+                                        <option value="1.25" selected>1.25x (Brisk)</option>
                                         <option value="1.5">1.5x (Fast)</option>
                                         <option value="1.75">1.75x (Very Fast)</option>
                                         <option value="2.0">2.0x (Double Speed)</option>
@@ -181,13 +162,13 @@
                                 </div>
                             </div>
 
-                            <!-- Speech Preprocessing Dropdown -->
+                            <!-- Audio Stream Mode Selector -->
                             <div style="display: flex; align-items: center; gap: 6px;">
-                                <span class="settings-title" title="Clean filler words (ums, ahs, ers) and speech pauses from input"><i class="fa-solid fa-wand-magic-sparkles" style="color: #6366f1;"></i> Preprocessing:</span>
+                                <span class="settings-title" title="Stream voice audio in real-time chunked mode as model generates tokens"><i class="fa-solid fa-bolt" style="color: #f59e0b;"></i> Audio Stream:</span>
                                 <div class="model-select-wrapper" style="position: relative;">
-                                    <select id="preprocessSelect" name="preprocess" class="model-select" style="padding: 3px 24px 3px 10px; font-size: 0.8rem; height: 28px;">
-                                        <option value="clean" selected>Active (Remove Ums & Ahs)</option>
-                                        <option value="none">Off (Raw)</option>
+                                    <select id="spokenStreamSelect" class="model-select" style="padding: 3px 24px 3px 10px; font-size: 0.8rem; height: 28px;">
+                                        <option value="stream" selected>Real-Time Streaming</option>
+                                        <option value="sentence">Sentence Buffer</option>
                                     </select>
                                     <i class="fa-solid fa-chevron-down dropdown-icon" style="font-size: 0.6rem; right: 8px; pointer-events: none;"></i>
                                 </div>
@@ -212,6 +193,20 @@
                                 <input type="text" id="notebookSearchInput" class="model-select" style="padding: 4px 28px 4px 10px; font-size: 0.8rem; height: 28px; line-height: 1; width: 100%; box-sizing: border-box; cursor: text;" placeholder="Search notebook..." autocomplete="off">
                                 <i class="fa-solid fa-chevron-down dropdown-icon" style="font-size: 0.6rem; right: 8px; pointer-events: none;"></i>
                                 <div id="notebookDropdownList" class="search-dropdown-list"></div>
+                            </div>
+                        </div>
+
+                        <!-- Persona -->
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span class="settings-title" title="Select Target AI Persona & Perspective"><i class="fa-solid fa-user-astronaut" style="color: #34d399;"></i> Persona:</span>
+                            <div class="model-select-wrapper" style="position: relative;">
+                                <select id="spokenPersonaSelect" class="model-select" style="padding: 3px 24px 3px 10px; font-size: 0.8rem; height: 28px;">
+                                    <option value="natural" selected>Natural Assistant</option>
+                                    <option value="child">Child</option>
+                                    <option value="sap">SAP Functional Consultant</option>
+                                    <option value="engineer">Google Systems Engineer</option>
+                                </select>
+                                <i class="fa-solid fa-chevron-down dropdown-icon" style="font-size: 0.6rem; right: 8px; pointer-events: none;"></i>
                             </div>
                         </div>
 
@@ -454,6 +449,6 @@
         </div>
     </div>
 
-    <script src="script.js?v=14.3"></script>
+    <script src="script.js?v=15.2"></script>
 </body>
 </html>

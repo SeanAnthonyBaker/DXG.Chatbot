@@ -76,6 +76,26 @@ class QueryRequest(BaseModel):
     use_notebook: bool = False
     notebook_id: str | None = None
     output_format: str = "paragraph"  # "paragraph", "code", "bullets", "tutorial", "table", "json"
+    language: str = "en"
+    persona: str = "natural"
+
+LANGUAGE_NAMES = {
+    "en": "English",
+    "es": "Spanish",
+    "fr": "French",
+    "de": "German",
+    "it": "Italian",
+    "pt": "Portuguese",
+    "nl": "Dutch",
+    "pl": "Polish",
+    "tr": "Turkish",
+    "ru": "Russian",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "zh-cn": "Chinese",
+    "ar": "Arabic",
+    "hi": "Hindi"
+}
 
 # Preprocessing logic: Active (Speech Cleaner) vs Off (Raw)
 def preprocess_text(text: str, option: str, model: str = "gemma-4-12b") -> str:
@@ -241,6 +261,30 @@ async def get_model_status():
     except Exception as e:
         return {"status": "error", "error": str(e), "loaded_models": []}
 
+def load_persona_skill_context(persona: str) -> str:
+    """Pre-load related skill instructions from disk prior to query execution based on selected persona."""
+    skill_map = {
+        "sap": os.path.join(os.path.dirname(__file__), ".agents", "skills", "sap-skill", "SKILL.md"),
+        "engineer": os.path.join(os.path.dirname(__file__), ".agents", "skills", "google-engineer-skill", "SKILL.md"),
+        "child": os.path.join(os.path.dirname(__file__), ".agents", "skills", "child-skill", "SKILL.md")
+    }
+    
+    skill_path = skill_map.get(persona)
+    if skill_path and os.path.exists(skill_path):
+        try:
+            with open(skill_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                # Strip YAML frontmatter if present
+                if content.startswith("---"):
+                    parts = content.split("---", 2)
+                    if len(parts) >= 3:
+                        content = parts[2].strip()
+                return f"\n\n[Pre-Loaded Persona Skill Context ({persona.upper()})]:\n{content}"
+        except Exception as e:
+            print(f"Error loading skill file {skill_path}: {e}")
+            
+    return ""
+
 @app.post("/api/query")
 async def query_llm(req: QueryRequest):
     original_prompt = req.prompt
@@ -275,6 +319,23 @@ async def query_llm(req: QueryRequest):
     }
     if req.output_format in format_directives:
         preprocessed_prompt += format_directives[req.output_format]
+
+    target_lang_key = req.language.lower().strip() if req.language else "en"
+    if target_lang_key in LANGUAGE_NAMES and target_lang_key != "en":
+        lang_name = LANGUAGE_NAMES[target_lang_key]
+        preprocessed_prompt += f"\n\n[Language Directive: You MUST generate your ENTIRE response in {lang_name}. Respond ONLY in {lang_name}.]"
+
+    persona_directives = {
+        "child": "\n\n[Persona Directive: Adopt the persona of a Curious Child. Use simple, friendly language, imaginative analogies, and an enthusiastic tone.]",
+        "sap": "\n\n[Persona Directive: Adopt the persona of an expert SAP Functional Consultant. Provide enterprise business process insight, SAP terminology (e.g. S/4HANA, T-codes, BAPIs, Fiori), and structured functional recommendations.]",
+        "engineer": "\n\n[Persona Directive: Adopt the persona of a Senior Google Systems Engineer. Provide deep technical precision, architectural rigor, high reliability, scalability principles, and production-grade engineering insights.]"
+    }
+    if req.persona in persona_directives:
+        preprocessed_prompt += persona_directives[req.persona]
+        # Pre-load skill file context prior to query execution
+        skill_context = load_persona_skill_context(req.persona)
+        if skill_context:
+            preprocessed_prompt += skill_context
 
     if notebook_context:
         preprocessed_prompt = (
@@ -349,6 +410,7 @@ async def query_llm(req: QueryRequest):
     
     def generate_stream():
         full_response = []
+        suppressed_reasoning = []
         try:
             # Connect to vLLM service with streaming response
             response = requests.post(vllm_url, json=payload, headers=headers, stream=True)
@@ -360,6 +422,12 @@ async def query_llm(req: QueryRequest):
                     if decoded_line.startswith("data: "):
                         data_str = decoded_line[6:].strip()
                         if data_str == "[DONE]":
+                            # If no content tokens arrived, fallback to suppressed reasoning so an answer is always delivered
+                            if not full_response and suppressed_reasoning:
+                                fallback_text = "".join(suppressed_reasoning)
+                                full_response.append(fallback_text)
+                                yield f"data: {json.dumps({'token': fallback_text, 'is_thinking': False})}\n\n"
+                            
                             # Save completed generation to database
                             final_response = "".join(full_response)
                             db_prompt = original_prompt
@@ -380,6 +448,7 @@ async def query_llm(req: QueryRequest):
                                 full_response.append(reasoning)
                                 yield f"data: {json.dumps({'token': reasoning, 'is_thinking': True})}\n\n"
                             elif not req.think and reasoning:
+                                suppressed_reasoning.append(reasoning)
                                 # Yield status heartbeat so frontend remains interactive while reasoning in background
                                 yield f"data: {json.dumps({'token': '', 'is_thinking': False, 'status': 'reasoning'})}\n\n"
                             elif token:
@@ -486,23 +555,26 @@ async def tts_endpoint(req: Request):
     try:
         body = await req.json()
         text = body.get("text", "").strip()
-        lang_code = body.get("lang", "en-US")
+        lang_param = body.get("lang", "en").strip().lower()
+        accent_param = body.get("accent", "us").strip().lower()
         
         if not text:
             return JSONResponse(status_code=400, content={"error": "Text is required"})
             
-        short_lang = lang_code.split("-")[0].lower()
-        if lang_code.lower() in ("zh-cn", "zh-tw"):
-            short_lang = lang_code.lower()
+        short_lang = lang_param.split("-")[0].lower()
+        if lang_param in ("zh-cn", "zh-tw"):
+            short_lang = lang_param
             
         tld_map = {
-            "en-nz": "co.nz",   # Kiwi / New Zealand accent
-            "en-ie": "ie",      # Irish accent
-            "en-gb": "co.uk",   # British accent
-            "en-au": "com.au",  # Australian accent
-            "en-us": "com"      # US accent
+            "us": "com",       # US Accent
+            "gb": "co.uk",     # British / UK Accent
+            "ie": "ie",        # Irish Accent
+            "nz": "co.nz",     # Kiwi Accent
+            "au": "com.au",    # Australian Accent
+            "ca": "ca",        # Canadian Accent
+            "in": "co.in"      # Indian Accent
         }
-        tld_val = tld_map.get(lang_code.lower(), "com")
+        tld_val = tld_map.get(accent_param, "com")
             
         fp = BytesIO()
         tts = gTTS(text=text, lang=short_lang, tld=tld_val)

@@ -1400,7 +1400,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             updateReadAloudState(true);
             const targetLang = spokenLangSelect ? spokenLangSelect.value : "en-US";
-            const targetSpeed = spokenSpeedSelect ? parseFloat(spokenSpeedSelect.value) : 1.0;
+            const targetSpeed = spokenSpeedSelect ? parseFloat(spokenSpeedSelect.value) : 1.25;
             const targetEngine = spokenVoiceEngineSelect ? spokenVoiceEngineSelect.value : "e4b";
             playTTS(textToRead, targetLang, targetSpeed, targetEngine);
         });
@@ -1482,7 +1482,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (isStreaming) return;
         lastQueryTimestamp = Date.now();
 
-        // Stop any active text-to-speech playback
+        // Stop any active text-to-speech playback and reset stream queue
+        resetAudioStreamQueue();
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
             updateReadAloudState(false);
@@ -1504,6 +1505,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const selectedModel = _modelSelect ? _modelSelect.value : "gemma-4-12b";
 
         const outputFormatSelect = document.getElementById("outputFormatSelect");
+        const spokenLangSelect = document.getElementById("spokenLangSelect");
+        const spokenPersonaSelect = document.getElementById("spokenPersonaSelect");
         const fileSent = stagedFile;
         const requestBody = { 
             prompt: text, 
@@ -1513,7 +1516,9 @@ document.addEventListener("DOMContentLoaded", () => {
             model: selectedModel,
             use_notebook: notebookToggle ? notebookToggle.checked : false,
             notebook_id: (notebookSearchInput && notebookSearchInput.dataset.notebookId) ? notebookSearchInput.dataset.notebookId : null,
-            output_format: outputFormatSelect ? outputFormatSelect.value : "paragraph"
+            output_format: outputFormatSelect ? outputFormatSelect.value : "paragraph",
+            language: spokenLangSelect ? spokenLangSelect.value : "en",
+            persona: spokenPersonaSelect ? spokenPersonaSelect.value : "natural"
         };
 
         if (fileSent && (selectedModel === "gemma-4-12b" || selectedModel === "gemma-4-e4b" || selectedModel === "glm-4-voice" || selectedModel === "qwen-3.6-35b-a3b")) {
@@ -1672,6 +1677,12 @@ document.addEventListener("DOMContentLoaded", () => {
                                     accumulatedThinking += parsed.token;
                                 } else {
                                     accumulatedResponse += parsed.token;
+
+                                    // Real-Time Audio Streaming: Stream audio chunks as tokens generate
+                                    const spokenStreamSelect = document.getElementById("spokenStreamSelect");
+                                    if (spokenStreamSelect && spokenStreamSelect.value === "stream") {
+                                        processIncomingTokenForAudioStream(parsed.token);
+                                    }
                                 }
 
                                 if (!firstTokenTime) {
@@ -1767,9 +1778,11 @@ document.addEventListener("DOMContentLoaded", () => {
             // Reload history to show new prompt
             loadHistory();
 
-            // Voice mode is always on
-            const shouldAutoRead = true;
-            if (shouldAutoRead && accumulatedResponse) {
+            // Real-Time Streaming Audio Finalize vs Sentence Fallback
+            const spokenStreamSelect = document.getElementById("spokenStreamSelect");
+            if (spokenStreamSelect && spokenStreamSelect.value === "stream") {
+                finalizeIncomingTokenAudioStream();
+            } else if (accumulatedResponse) {
                 const textToSpeak = accumulatedResponse
                     .replace(/```[\s\S]*?```/g, " [code block] ")
                     .replace(/`([^`]+)`/g, "$1")
@@ -1782,7 +1795,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (textToSpeak) {
                     setTimeout(() => {
                         const targetLang = spokenLangSelect ? spokenLangSelect.value : "en-US";
-                        const targetSpeed = spokenSpeedSelect ? parseFloat(spokenSpeedSelect.value) : 1.0;
+                        const targetSpeed = spokenSpeedSelect ? parseFloat(spokenSpeedSelect.value) : 1.25;
                         speakResponseText(textToSpeak, targetLang, targetSpeed);
                     }, 400);
                 }
@@ -1799,7 +1812,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function speakResponseText(text, lang, speed) {
         const targetLang = lang || (spokenLangSelect ? spokenLangSelect.value : "en-US");
-        const targetSpeed = speed || (spokenSpeedSelect ? parseFloat(spokenSpeedSelect.value) : 1.0);
+        const targetSpeed = speed || (spokenSpeedSelect ? parseFloat(spokenSpeedSelect.value) : 1.25);
         playTTS(text, targetLang, targetSpeed);
     }
 
@@ -1988,6 +2001,40 @@ document.addEventListener("DOMContentLoaded", () => {
         spokenParamsWrapper.style.display = "flex";
         spokenParamsWrapper.style.opacity = "1";
         spokenParamsWrapper.style.pointerEvents = "auto";
+    }
+
+    async function populateAudioOutputDevices() {
+        const select = document.getElementById("audioOutputSelect");
+        if (!select || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const audioOutputs = devices.filter(d => d.kind === "audiooutput");
+
+            if (audioOutputs.length > 0) {
+                const currentVal = select.value;
+                select.innerHTML = "";
+                audioOutputs.forEach(device => {
+                    const option = document.createElement("option");
+                    option.value = device.deviceId;
+                    let label = device.label || (device.deviceId === "default" ? "Default / Bluetooth Earphones" : `Audio Device (${device.deviceId.slice(0, 8)})`);
+                    option.textContent = label;
+                    select.appendChild(option);
+                });
+                if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
+                    select.value = currentVal;
+                }
+            }
+        } catch (err) {
+            console.warn("Could not enumerate audio output devices:", err);
+        }
+    }
+
+    if (navigator.mediaDevices) {
+        if (navigator.mediaDevices.ondevicechange !== undefined) {
+            navigator.mediaDevices.ondevicechange = populateAudioOutputDevices;
+        }
+        populateAudioOutputDevices();
     }
 
     if (s2sModeSelect) {
@@ -2299,17 +2346,125 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // Real-Time Audio Streaming Queue Engine
+    let audioStreamQueue = [];
+    let isAudioStreamPlaying = false;
+    let sentenceBuffer = "";
+
+    function resetAudioStreamQueue() {
+        audioStreamQueue = [];
+        isAudioStreamPlaying = false;
+        sentenceBuffer = "";
+    }
+
+    function processIncomingTokenForAudioStream(token) {
+        sentenceBuffer += token;
+        const match = sentenceBuffer.match(/^([\s\S]+?[\.\!\?\;\n]+)([\s\S]*)$/);
+        if (match) {
+            const completedClause = match[1].trim();
+            sentenceBuffer = match[2];
+            if (completedClause.length > 3) {
+                enqueueAudioStreamChunk(completedClause);
+            }
+        }
+    }
+
+    function finalizeIncomingTokenAudioStream() {
+        if (sentenceBuffer.trim().length > 0) {
+            enqueueAudioStreamChunk(sentenceBuffer.trim());
+            sentenceBuffer = "";
+        }
+    }
+
+    function enqueueAudioStreamChunk(textChunk) {
+        audioStreamQueue.push(textChunk);
+        if (!isAudioStreamPlaying) {
+            playNextAudioStreamChunk();
+        }
+    }
+
+    async function playNextAudioStreamChunk() {
+        if (audioStreamQueue.length === 0) {
+            isAudioStreamPlaying = false;
+            return;
+        }
+
+        isAudioStreamPlaying = true;
+        const textToSpeak = audioStreamQueue.shift();
+
+        const cleanText = textToSpeak
+            .replace(/```[\s\S]*?```/g, " [code block] ")
+            .replace(/`([^`]+)`/g, "$1")
+            .replace(/\*\*([^*]+)\*\*/g, "$1")
+            .replace(/\*([^*]+)\*/g, "$1")
+            .replace(/#+\s*/g, "")
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+            .replace(/[\n\r]+/g, " ")
+            .trim();
+
+        if (!cleanText) {
+            playNextAudioStreamChunk();
+            return;
+        }
+
+        const spokenPersonaSelect = document.getElementById("spokenPersonaSelect");
+        const _spokenSpeedSelectLocal = document.getElementById("spokenSpeedSelect");
+        const spokenVoiceEngineSelect = document.getElementById("spokenVoiceEngineSelect");
+        const spokenAccentSelect = document.getElementById("spokenAccentSelect");
+
+        const targetLang = spokenLangSelect ? spokenLangSelect.value : "en";
+        const targetAccent = spokenAccentSelect ? spokenAccentSelect.value : "us";
+        const targetSpeed = _spokenSpeedSelectLocal ? parseFloat(_spokenSpeedSelectLocal.value) : 1.25;
+        const targetEngine = spokenVoiceEngineSelect ? spokenVoiceEngineSelect.value : "e4b";
+        const targetPersona = spokenPersonaSelect ? spokenPersonaSelect.value : "natural";
+
+        try {
+            const res = await fetch("/api/tts", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: cleanText, lang: targetLang, accent: targetAccent, engine: targetEngine, persona: targetPersona })
+            });
+
+            if (res.ok) {
+                const blob = await res.blob();
+                const audioUrl = URL.createObjectURL(blob);
+                currentAudioPlayback = new Audio(audioUrl);
+                currentAudioPlayback.playbackRate = targetSpeed;
+
+                const audioOutputSelect = document.getElementById("audioOutputSelect");
+                if (audioOutputSelect && audioOutputSelect.value && audioOutputSelect.value !== "default" && typeof currentAudioPlayback.setSinkId === "function") {
+                    try { await currentAudioPlayback.setSinkId(audioOutputSelect.value); } catch(e){}
+                }
+
+                currentAudioPlayback.onended = () => {
+                    playNextAudioStreamChunk();
+                };
+                currentAudioPlayback.onerror = () => {
+                    playNextAudioStreamChunk();
+                };
+                await currentAudioPlayback.play();
+                return;
+            }
+        } catch (err) {
+            console.warn("Chunk playback error, continuing stream:", err);
+        }
+
+        playNextAudioStreamChunk();
+    }
+
     let currentAudioPlayback = null;
 
-    async function playTTS(text, lang, speed, engine, persona) {
+    async function playTTS(text, lang, speed, engine, persona, accent) {
         if (!text || !text.trim()) return;
 
         const spokenPersonaSelect = document.getElementById("spokenPersonaSelect");
         const _spokenSpeedSelectLocal = document.getElementById("spokenSpeedSelect");
         const spokenVoiceEngineSelect = document.getElementById("spokenVoiceEngineSelect");
+        const spokenAccentSelect = document.getElementById("spokenAccentSelect");
 
-        const targetLang = lang || (spokenLangSelect ? spokenLangSelect.value : "en-US");
-        const playbackRateVal = speed || (_spokenSpeedSelectLocal ? parseFloat(_spokenSpeedSelectLocal.value) : 1.0);
+        const targetLang = lang || (spokenLangSelect ? spokenLangSelect.value : "en");
+        const targetAccent = accent || (spokenAccentSelect ? spokenAccentSelect.value : "us");
+        const playbackRateVal = speed || (_spokenSpeedSelectLocal ? parseFloat(_spokenSpeedSelectLocal.value) : 1.25);
         const targetEngine = engine || (spokenVoiceEngineSelect ? spokenVoiceEngineSelect.value : "e4b");
         const targetPersona = persona || (spokenPersonaSelect ? spokenPersonaSelect.value : "natural");
 
@@ -2331,7 +2486,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const res = await fetch("/api/tts", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ text: text, lang: targetLang, engine: targetEngine, persona: targetPersona })
+                body: JSON.stringify({ text: text, lang: targetLang, accent: targetAccent, engine: targetEngine, persona: targetPersona })
             });
 
             if (res.ok) {
@@ -2339,6 +2494,17 @@ document.addEventListener("DOMContentLoaded", () => {
                 const audioUrl = URL.createObjectURL(blob);
                 currentAudioPlayback = new Audio(audioUrl);
                 currentAudioPlayback.playbackRate = playbackRateVal;
+
+                // Route audio output to selected device (e.g. Bluetooth Earphones / Headphones)
+                const audioOutputSelect = document.getElementById("audioOutputSelect");
+                if (audioOutputSelect && audioOutputSelect.value && audioOutputSelect.value !== "default" && typeof currentAudioPlayback.setSinkId === "function") {
+                    try {
+                        await currentAudioPlayback.setSinkId(audioOutputSelect.value);
+                    } catch (e) {
+                        console.warn("Could not route audio to Bluetooth device sink ID:", e);
+                    }
+                }
+
                 currentAudioPlayback.onended = () => {
                     if (cancelQueryBtn) cancelQueryBtn.style.display = "none";
                     updateReadAloudState(false);
@@ -2410,7 +2576,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const selectedText = highlightedTextForContext || window.getSelection().toString().trim();
             if (selectedText) {
                 const targetLang = spokenLangSelect ? spokenLangSelect.value : "en-US";
-                const targetSpeed = spokenSpeedSelect ? parseFloat(spokenSpeedSelect.value) : 1.0;
+                const targetSpeed = spokenSpeedSelect ? parseFloat(spokenSpeedSelect.value) : 1.25;
                 const targetEngine = spokenVoiceEngineSelect ? spokenVoiceEngineSelect.value : "e4b";
                 playTTS(selectedText, targetLang, targetSpeed, targetEngine);
             }
